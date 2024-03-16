@@ -134,44 +134,138 @@ const int P[] = {
 	19, 13, 30, 6, 22, 11, 4, 25
 };
 
+/**----------------------------------------------------------------**/
+
 /**
- * 工具函数：将传入字符转化为二进制bitset
+ * 将传入的字符串转化为二进制bitset
+ * @param sub_str 传入的字符串
+ * @return 二进制bitset
+ */
+bitset<64> str_to_bitset(const string &sub_str) {
+	bitset<64> bits;
+	for (size_t i = 0; i < sub_str.size(); ++i) {
+		bitset<8> temp_char(sub_str[i]);
+		for (size_t j = 0; j < 8; ++j) {
+			bits[i % 8 * 8 + j] = temp_char[j];
+		}
+	}
+	return bits;
+}
+
+/**
+ * 将明文转化为二进制块
  * @return blocks 64位二进制块的vector
  */
-vector<bitset<64>> string_to_binary(string &str) {
-	bitset<64> bits;
+vector<bitset<64>> generate_text_block(string &str) {
 	vector<bitset<64>> blocks;
 	unsigned short empty_bytes;
 	if (str.size() % 8) {
 		empty_bytes = 8 - str.size() % 8;
-	}
-	else {
+	} else {
 		empty_bytes = 0;
 	}
 	// 将不足8位的用全0填充至8位
 	for (size_t i = 0; i < empty_bytes; ++i) {
 		str.push_back('\0');
 	}
-	for (size_t i = 0; i < str.size(); ++i) {
-		bitset<8> temp_char(str[i]);
-		for (size_t j = 0; j < 8; ++j) {
-			bits[i % 8 * 8 + j] = temp_char[j];
-		}
-		if ((i + 1) % 8 == 0) {
-			blocks.push_back(bits);
-			bits.reset();
-		}
+	for (size_t i = 0; i < str.size() / 8; ++i) {
+		string temp_sub_str = str.substr(i * 8, (i + 1) * 8);
+		auto bits = str_to_bitset(temp_sub_str);
+		blocks.push_back(bits);
 	}
 	return blocks;
 }
 
+/**
+ * 检查key是否合法
+ * @param key
+ * @return
+ */
+bool check_key_legality(const string &key) {
+	return key.size() == 8;
+}
 
-int main() {
-	string str = "abcdefgh";
-	vector<bitset<64>> blocks = string_to_binary(str);
+///**
+// * 置换函数
+// * @tparam N bitset的长度
+// * @param original 输入的bitset
+// * @param transform_table 置换表
+// * @return 进行转化后的bitset
+// */
+//template <size_t N>
+//bitset<N> transform(const bitset<N> &original, const int transform_table[N]) {
+//	bitset<N> transformed;
+//	for (size_t i = 0; i < N; ++i) {
+//		transformed[i] = original[transform_table[i] - 1];
+//	}
+//	return transformed;
+//}
+
+/**
+ * 生成子密钥
+ * @param key
+ */
+bitset<48> generate_key(const string &key) {
+	bitset<64> bits = str_to_bitset(key);
+	bitset<56> key_56;
+	for (size_t i = 0; i < 56; ++i) {
+		key_56[i] = bits[PC_1[i] - 1];
+	}
+	bitset<28> left, right;
+	for (size_t i = 0; i < 28; ++i) {
+		left[i] = key_56[i];
+		right[i] = key_56[i + 28];
+	}
+	for (size_t i = 0; i < 16; ++i) {
+		left = (left << shiftBits[i]) | (left >> (28 - shiftBits[i]));
+		right = (right << shiftBits[i]) | (right >> (28 - shiftBits[i]));
+		bitset<56> temp_key;
+		for (size_t j = 0; j < 28; ++j) {
+			temp_key[j] = left[j];
+			temp_key[j + 28] = right[j];
+		}
+		bitset<48> sub_key;
+		for (size_t j = 0; j < 48; ++j) {
+			sub_key[j] = temp_key[PC_2[j] - 1];
+		}
+		return sub_key;
+	}
+}
+
+bitset<64> initial_transform_text(const bitset<64> &original) {
+	bitset<64> transformed;
+	for (size_t i = 0; i < 64; ++i) {
+		transformed[i] = original[IP[i] - 1];
+	}
+	return transformed;
+}
+
+/**
+ * 输出函数
+ * @param blocks
+ */
+void show_blocks(const vector<bitset<64>> &blocks) {
 	for (size_t i = 0; i < blocks.size(); ++i) {
 		cout << blocks[i] << endl;
 	}
+}
+
+int main() {
+	string text = "abcdefgh";
+	string key = "12345678";
+	if (!check_key_legality(key)) {
+		cout << "Key is illegal!" << endl;
+		return 0;
+	}
+	// 生成子密钥
+	auto sub_key = generate_key(key);
+	// 生成明文块
+	vector<bitset<64>> blocks = generate_text_block(text);
+
+
+
+	show_blocks(blocks);	// 输出明文块
+
 	return 0;
 }
 

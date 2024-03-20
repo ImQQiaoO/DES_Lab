@@ -143,10 +143,10 @@ const int P[] = {
  */
 bitset<64> str_to_bitset(const string &sub_str) {
 	bitset<64> bits;
-	for (size_t i = 0; i < sub_str.size(); ++i) {
+	for (size_t i = 0; i < sub_str.size(); ++i) { //sub_str.size() = 8
 		bitset<8> temp_char(sub_str[i]);
 		for (size_t j = 0; j < 8; ++j) {
-			bits[i % 8 * 8 + j] = temp_char[j];
+			bits[(7 - i) * 8 + j] = temp_char[j];
 		}
 	}
 	return bits;
@@ -176,6 +176,7 @@ vector<bitset<64>> generate_text_block(string &str) {
 	return blocks;
 }
 
+
 /**
  * 检查key是否合法
  * @param key
@@ -189,31 +190,35 @@ bool check_key_legality(const string &key) {
  * 生成子密钥
  * @param key
  */
-bitset<48> generate_key(const string &key) {
+vector<bitset<48>> generate_key(const string &key) {
 	bitset<64> bits = str_to_bitset(key);
+	cout << "bits " << bits << endl;
 	bitset<56> key_56;
 	for (size_t i = 0; i < 56; ++i) {
-		key_56[i] = bits[PC_1[i] - 1];
+		key_56[55 - i] = bits[64 - PC_1[i]];
 	}
+	cout << "\nNow the key56 is " << key_56 << endl;
 	bitset<28> left, right;
-	for (size_t i = 0; i < 28; ++i) {
-		left[i] = key_56[i];
-		right[i] = key_56[i + 28];
-	}
+	vector<bitset<48>> sub_keys(16);
 	bitset<48> sub_key;
-	for (int shiftBit : shiftBits) {
-		left = (left << shiftBit) | (left >> (28 - shiftBit));
-		right = (right << shiftBit) | (right >> (28 - shiftBit));
+	for (size_t i = 0; i < 16; ++i) {
+		for (size_t j = 0; j < 28; ++j) {
+			right[j] = key_56[j];
+			left[27 - j] = key_56[j + 28];
+		}
+		left = (left << shiftBits[i]) | (left >> (28 - shiftBits[i]));
+		right = (right << shiftBits[i]) | (right >> (28 - shiftBits[i]));
 		bitset<56> temp_key;
 		for (size_t j = 0; j < 28; ++j) {
 			temp_key[j] = left[j];
 			temp_key[j + 28] = right[j];
 		}
 		for (size_t j = 0; j < 48; ++j) {
-			sub_key[j] = temp_key[PC_2[j] - 1];
+			sub_key[47 - j] = temp_key[56 - PC_2[j]];
 		}
+		sub_keys[i] = sub_key;
 	}
-	return sub_key;
+	return sub_keys;
 }
 
 /**
@@ -225,21 +230,21 @@ bitset<48> generate_key(const string &key) {
 bitset<32> f(const bitset<32> &right, const bitset<48> &sub_key) {
 	bitset<48> expanded_right;
 	for (size_t i = 0; i < 48; ++i) {
-		expanded_right[i] = right[E[i] - 1];
+		expanded_right[47 - i] = right[32 - E[i]];
 	}
 	expanded_right ^= sub_key;
 	bitset<32> result;
 	for (size_t i = 0; i < 8; ++i) {
-		int row = expanded_right[i * 6] * 2 + expanded_right[i * 6 + 5];
-		int col = expanded_right[i * 6 + 1] * 8 + expanded_right[i * 6 + 2] * 4 + expanded_right[i * 6 + 3] * 2 + expanded_right[i * 6 + 4];
+		int row = expanded_right[47 - i * 6] * 2 + expanded_right[47 - (i + 1) * 6 + 1];
+		int col = expanded_right[47 - i * 6 - 1] * 8 + expanded_right[47 - i * 6 - 2] * 4 + expanded_right[47 - i * 6 - 3] * 2 + expanded_right[47 - i * 6 - 4];
 		int num = S_BOX[i][row][col];
 		for (size_t j = 0; j < 4; ++j) {
-			result[i * 4 + j] = (num >> (3 - j)) & 1;
+			result[31 - i * 4 - j] = (num >> j) & 1;
 		}
 	}
 	bitset<32> final_result;
 	for (size_t i = 0; i < 32; ++i) {
-		final_result[i] = result[P[i] - 1];
+		final_result[31 - i] = result[32 - P[i]];
 	}
 	return final_result;
 }
@@ -249,14 +254,14 @@ bitset<32> f(const bitset<32> &right, const bitset<48> &sub_key) {
 /**
  * 加密明文块
  * @param original 明文
- * @param sub_key 子密钥
+ * @param sub_keys 子密钥
  * @return
  */
-bitset<64> encrypt_text(const bitset<64> &original, const bitset<48> &sub_key) {
+bitset<64> encrypt_text(const bitset<64> &original, const vector<bitset<48>> &sub_keys) {
 	bitset<64> curr_text;
 	// 初始置换
 	for (size_t i = 0; i < 64; ++i) {
-		curr_text[i] = original[IP[i] - 1];
+		curr_text[63 - i] = original[64 - IP[i]];
 	}
 	// 将完成初始置换后的64位明文分为左右两部分
 	bitset<32> left, right;
@@ -267,7 +272,7 @@ bitset<64> encrypt_text(const bitset<64> &original, const bitset<48> &sub_key) {
 	// 16轮迭代
 	for (size_t i = 0; i < 16; ++i) {
 		bitset<32> temp = right;
-		right = left ^ f(right, sub_key);	// f函数
+		right = left ^ f(right, sub_keys[i]);	// f函数
 		left = temp;
 	}
 	// 按R，L合并左右两部分
@@ -275,20 +280,20 @@ bitset<64> encrypt_text(const bitset<64> &original, const bitset<48> &sub_key) {
 		curr_text[i] = right[i];
 		curr_text[i + 32] = left[i];
 	}
-	// cout << "R16L16 is: " << curr_text << endl;
+	cout << "R16L16 is: " << curr_text << endl;
 	// 结尾置换IP_1
 	bitset<64> encrypted_text;
 	for (size_t i = 0; i < 64; ++i) {
-		encrypted_text[i] = curr_text[IP_1[i] - 1];
+		encrypted_text[63 - i] = curr_text[64 - IP_1[i]];
 	}
 	return encrypted_text;
 }
 
-bitset<64> decrypt_text(const bitset<64> &original, const bitset<48> &sub_key) {
+bitset<64> decrypt_text(const bitset<64> &original, const vector<bitset<48>> &sub_keys) {
 	bitset<64> curr_text;
 	// 初始置换
 	for (size_t i = 0; i < 64; ++i) {
-		curr_text[i] = original[IP[i] - 1];
+		curr_text[63 - i] = original[64 - IP[i]];
 	}
 	// 将完成初始置换后的64位明文分为左右两部分
 	bitset<32> left, right;
@@ -299,7 +304,7 @@ bitset<64> decrypt_text(const bitset<64> &original, const bitset<48> &sub_key) {
 	// 16轮迭代
 	for (size_t i = 0; i < 16; ++i) {
 		bitset<32> temp = right;
-		right = left ^ f(right, sub_key);	// f函数
+		right = left ^ f(right, sub_keys[15 - i]);	// f函数
 		left = temp;
 	}
 	// 按R，L合并左右两部分
@@ -310,7 +315,7 @@ bitset<64> decrypt_text(const bitset<64> &original, const bitset<48> &sub_key) {
 	// 结尾置换IP_1
 	bitset<64> text;
 	for (size_t i = 0; i < 64; ++i) {
-		text[i] = curr_text[IP_1[i] - 1];
+		text[63 - i] = curr_text[64 - IP_1[i]];
 	}
 	return text;
 }
@@ -327,14 +332,14 @@ void show_blocks(const vector<bitset<64>> &blocks) {
 }
 
 int main() {
-	string text = "abcdefghijk0";
-	string key = "12345678";
+	string text = "abcdefghi";
+	string key = "01234567";
 	if (!check_key_legality(key)) {
 		cout << "Key is illegal!" << endl;
 		return 0;
 	}
 	// 生成子密钥
-	auto sub_key = generate_key(key);
+	auto sub_keys = generate_key(key);
 	// 生成明文块
 	vector<bitset<64>> blocks = generate_text_block(text);
 	show_blocks(blocks);	// 输出明文块
@@ -342,7 +347,7 @@ int main() {
 	vector<bitset<64>> encrypted_blocks;
 	encrypted_blocks.reserve(blocks.size());
 	for (auto &block : blocks) {
-		encrypted_blocks.push_back(encrypt_text(block, sub_key));
+		encrypted_blocks.push_back(encrypt_text(block, sub_keys));
 	}
 	// 加密完成，回收内存
 	blocks.clear();
@@ -351,18 +356,18 @@ int main() {
 
 	// 解密密文块
 	for (auto &block : encrypted_blocks) {
-		auto decrypt_code = decrypt_text(block, sub_key);
+		auto decrypt_code = decrypt_text(block, sub_keys);
 		cout << decrypt_code << endl;
 		// 将解密后的明文块转化为字符串
 		string decrypted_str;
 		for (size_t i = 0; i < 8; ++i) {
 			bitset<8> temp;
 			for (size_t j = 0; j < 8; ++j) {
-				temp[j] = decrypt_code[i * 8 + j];
+				temp[j] = decrypt_code[(7 - i) * 8 + j];
 			}
 			decrypted_str.push_back(static_cast<char>(temp.to_ulong()));
 		}
-		cout << decrypted_str << endl;
+		cout << "\n解密后的结果为：" << decrypted_str << endl;
 	}
 
 	return 0;

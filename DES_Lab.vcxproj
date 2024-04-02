@@ -24,7 +24,7 @@
     <ProjectGuid>{b4ad3293-e156-4022-a7ee-ac4ebe17ed3b}</ProjectGuid>
     <RootNamespace>DESLab</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>DES_Lab0</ProjectName>
+    <ProjectName>DES_Lab</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

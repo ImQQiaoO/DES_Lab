@@ -244,7 +244,7 @@ void decrypt_string(const vector<bitset<64>> &encrypted_blocks, const vector<bit
 	cout << endl;
 }
 
-vector<bitset<64>> read_file(string target_file_name, const string key) {
+vector<bitset<64>> read_file(string target_file_name) {
 	// 查找当前文件夹中是否存在此文件
 	bool find_file = false;
 	for (const auto &entry : filesystem::directory_iterator("./")) {
@@ -258,24 +258,16 @@ vector<bitset<64>> read_file(string target_file_name, const string key) {
 		cout << "File not found!" << endl;
 		return{};
 	}
-	//// 加密文件名，将其转化为16进制，并保存到一个string中作为新文件名
-	//stringstream ss_filename;
-	//auto temp = encrypt_string(target_file_name, key).first;
-	//for (auto i : temp) {
-	//	ss_filename << hex << i;
-	//}
-	//string new_filename = ss_filename.str();
-	//cout << "\n new_filename is" << new_filename << endl;
 
 	// 以二进制模式读取文件
 	vector<bitset<64>> bits_blocks;
-	std::ifstream file("./" + target_file_name, std::ios::binary | std::ios::ate);
+	ifstream file("./" + target_file_name, ios::binary | ios::ate);
 	if (file.is_open()) {
-		std::streamsize size = file.tellg();
-		file.seekg(0, std::ios::beg);
-		std::vector<char> buffer(size);
-		bitset<64> bits_block;
+		streamsize size = file.tellg();
+		file.seekg(0, ios::beg);
+		vector<char> buffer(size);
 		if (file.read(buffer.data(), size)) {
+			bitset<64> bits_block;
 			if (buffer.size() % 8 != 0) {
 				for (size_t i = 0; i < buffer.size() % 8; ++i) {
 					buffer.push_back('\0');
@@ -283,41 +275,55 @@ vector<bitset<64>> read_file(string target_file_name, const string key) {
 			}
 			for (size_t i = 0; i < buffer.size(); ++i) {
 				bitset<8> bits(buffer[i]);
-				for (size_t i = 0; i < 8; ++i) {
-					bits_block[(7 - i) * 8 + i] = bits[i];
+				for (size_t j = 0; j < 8; ++j) {
+					bits_block[(i % 8) * 8 + j] = bits[j];
 				}
 				// 满64位就向数组中push
 				if (i % 8 == 7) {
 					bits_blocks.push_back(bits_block);
-					/*bits_block = bits_block.reset;*/
 				}
 			}
 		}
 	} else {
-		std::cout << "Error: Could not open file." << std::endl;
+		cout << "Error: Could not open file." << endl;
 	}
+
 	return bits_blocks;
 }
 
 // 解密文件
 void decrypt_file(const string &file_name, const string &key) {
-	auto sub_keys = generate_key(key);
-	auto input_file = read_file(file_name, key);
+	// 读取文件
+	ifstream read_file(file_name, ios::binary | ios::in);
+	vector<bitset<64>> blocks;
+	if (!read_file) {
+		cout << "无法打开文件" << endl;
+		return;
+	}
+
+	while (!read_file.eof()) {
+		bitset<64> block;
+		read_file.read(reinterpret_cast<char *>(&block), sizeof(block));
+		if (read_file.gcount() != sizeof(block)) {
+			break;  // 文件结束或者读取错误
+		}
+		blocks.push_back(block);
+	}
+	read_file.close();
+
 	vector<bitset<64>> decrypted_blocks;
-	decrypted_blocks.reserve(input_file.size());
-	for (auto &block : input_file) {
+	decrypted_blocks.reserve(blocks.size());
+	// 解密文件
+	auto sub_keys = generate_key(key);
+	for (auto &block : blocks) {
 		decrypted_blocks.push_back(decrypt_text(block, sub_keys));
 	}
-	// 将解密后的内容以UTF-8写入文件中
-	std::ofstream output_file("decrypted_" + file_name, std::ios::binary);
+
+	// 将解密后的内容以写入文件中
+	ofstream output_file("decrypted_" + file_name, ios::binary);
 	for (auto &block : decrypted_blocks) {
-		for (size_t i = 0; i < 8; ++i) {
-			bitset<8> temp;
-			for (size_t j = 0; j < 8; ++j) {
-				temp[j] = block[(7 - i) * 8 + j];
-			}
-			output_file << static_cast<char>(temp.to_ulong());
-		}
+		output_file.write(reinterpret_cast<char*>(&block), sizeof(block));
+		output_file.seekp(0, ios::end);
 	}
 	output_file.close();
 	cout << "文件解密完成" << endl;
@@ -329,34 +335,30 @@ int main() {
 	//cin >> choice;
 	choice = 2;
 	if (choice == 1) {
-		string str_text = "full_course_reader.pdf";
+		string str_text = "abcdefgh";
 		string key = "01234567";
 		auto encrypted_str = encrypt_string(str_text, key);
 		decrypt_string(encrypted_str.first, encrypted_str.second);
 	} else if (choice == 2) {
-		string file_name = "file.txt";
+		string file_name = "full_course_reader.pdf";
 		string key = "01234567";
 		auto sub_keys = generate_key(key);
-		auto input_file = read_file(file_name, key);
+		auto input_file = read_file(file_name);
 		vector<bitset<64>> encrypted_blocks;
 		encrypted_blocks.reserve(input_file.size());
 		for (auto &block : input_file) {
 			encrypted_blocks.push_back(encrypt_text(block, sub_keys));
 		}
-		// 将加密后的内容写入文件中，（UTF-8）
-		std::ofstream output_file("encrypted_" + file_name, std::ios::binary);
+		// 将加密后的内容写入文件中
+		ofstream output_file("encrypted_" + file_name, ios::binary | ios::out | ios::app);
 		for (auto &block : encrypted_blocks) {
-			for (size_t i = 0; i < 8; ++i) {
-				bitset<8> temp;
-				for (size_t j = 0; j < 8; ++j) {
-					temp[j] = block[(7 - i) * 8 + j];
-				}
-				output_file << static_cast<char>(temp.to_ulong());
-			}
+			output_file.write(reinterpret_cast<char *>(&block), sizeof(block));
+			// 将文件指针移动到文件末尾
+			output_file.seekp(0, ios::end);
 		}
 		output_file.close();
 		cout << "文件加密完成" << endl;
-		decrypt_file("encrypted_full_course_reader.pdf", key);
+		decrypt_file("encrypted_" + file_name, key);
 	}
 	return 0;
 }

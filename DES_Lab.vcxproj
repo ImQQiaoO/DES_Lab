@@ -136,9 +136,6 @@
     <ClInclude Include="DES_constants.h" />
     <ClInclude Include="README.md" />
   </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="DES_Lab.rc" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

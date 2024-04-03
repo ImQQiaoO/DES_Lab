@@ -244,7 +244,7 @@ void decrypt_string(const vector<bitset<64>> &encrypted_blocks, const vector<bit
 	cout << endl;
 }
 
-vector<bitset<64>> read_file(string target_file_name) {
+vector<bitset<64>> read_file(const string &target_file_name) {
 	// 查找当前文件夹中是否存在此文件
 	bool find_file = false;
 	for (const auto &entry : filesystem::directory_iterator("./")) {
@@ -258,6 +258,16 @@ vector<bitset<64>> read_file(string target_file_name) {
 		cout << "File not found!" << endl;
 		return{};
 	}
+
+	// 获取文件的大小
+	filesystem::path file_path = "./" + target_file_name;
+	try {
+		auto file_size = std::filesystem::file_size(file_path);
+		cout << "选定文件大小为 " << file_size << " Byte.\n";
+	} catch (std::filesystem::filesystem_error &e) {
+		cout << e.what() << '\n';
+	}
+
 
 	// 以二进制模式读取文件
 	vector<bitset<64>> bits_blocks;
@@ -322,11 +332,10 @@ void decrypt_file(const string &file_name, const string &key) {
 	// 将解密后的内容以写入文件中
 	ofstream output_file("decrypted_" + file_name, ios::binary);
 	for (auto &block : decrypted_blocks) {
-		output_file.write(reinterpret_cast<char*>(&block), sizeof(block));
+		output_file.write(reinterpret_cast<char *>(&block), sizeof(block));
 		output_file.seekp(0, ios::end);
 	}
 	output_file.close();
-	cout << "文件解密完成" << endl;
 }
 
 
@@ -340,8 +349,9 @@ int main() {
 		auto encrypted_str = encrypt_string(str_text, key);
 		decrypt_string(encrypted_str.first, encrypted_str.second);
 	} else if (choice == 2) {
-		string file_name = "full_course_reader.pdf";
+		string file_name = "IMG_0732.jpeg";
 		string key = "01234567";
+		auto start_encrypt = chrono::system_clock::now();	// 获取当前时间（文件加密开始）
 		auto sub_keys = generate_key(key);
 		auto input_file = read_file(file_name);
 		vector<bitset<64>> encrypted_blocks;
@@ -357,8 +367,12 @@ int main() {
 			output_file.seekp(0, ios::end);
 		}
 		output_file.close();
-		cout << "文件加密完成" << endl;
+		auto end_encrypt = chrono::system_clock::now();	// 获取当前时间（文件加密结束）
+		cout << "文件加密完成，本次加密用时" << chrono::duration_cast<chrono::seconds>(end_encrypt - start_encrypt).count() << "s." << endl;
+		auto start_decrypt = chrono::system_clock::now();	// 获取当前时间（文件加密开始）
 		decrypt_file("encrypted_" + file_name, key);
+		auto end_decrypt = chrono::system_clock::now();	// 获取当前时间（文件加密结束）
+		cout << "文件解密完成, 本次解密用时" << chrono::duration_cast<chrono::seconds>(end_decrypt - start_decrypt).count() << "s." << endl;
 	}
 	return 0;
 }

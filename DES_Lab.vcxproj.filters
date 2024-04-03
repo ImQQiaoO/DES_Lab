@@ -23,5 +23,13 @@
     <ClInclude Include="DES_constants.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="README.md">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="DES_Lab.rc">
+      <Filter>资源文件</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

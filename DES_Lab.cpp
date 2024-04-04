@@ -3,6 +3,7 @@
 #include <vector>
 #include <filesystem>
 #include <fstream>
+#include <thread>
 
 #include "DES_constants.h"
 
@@ -158,6 +159,12 @@ bitset<64> encrypt_text(const bitset<64> &original, const vector<bitset<48>> &su
 	return encrypted_text;
 }
 
+void multithreading_encrypt_text(vector<bitset<64>> &input_file, vector<bitset<64>> &encrypted_blocks, int start, int end, const vector<bitset<48>> &sub_keys) {
+	for (int i = start; i < end; ++i) {
+		encrypted_blocks[i] = encrypt_text(input_file[i], sub_keys);
+	}
+}
+
 bitset<64> decrypt_text(const bitset<64> &original, const vector<bitset<48>> &sub_keys) {
 	bitset<64> curr_text;
 	// 初始置换
@@ -259,16 +266,6 @@ vector<bitset<64>> read_file(const string &target_file_name) {
 		return{};
 	}
 
-	// 获取文件的大小
-	filesystem::path file_path = "./" + target_file_name;
-	try {
-		auto file_size = std::filesystem::file_size(file_path);
-		cout << "选定文件大小为 " << file_size << " Byte.\n";
-	} catch (std::filesystem::filesystem_error &e) {
-		cout << e.what() << '\n';
-	}
-
-
 	// 以二进制模式读取文件
 	vector<bitset<64>> bits_blocks;
 	ifstream file("./" + target_file_name, ios::binary | ios::ate);
@@ -339,6 +336,18 @@ void decrypt_file(const string &file_name, const string &key) {
 }
 
 
+uintmax_t get_file_size(const string &file_name) {
+	// 获取文件的大小
+	uintmax_t file_size = 0;
+	filesystem::path file_path = "./" + file_name;
+	try {
+		file_size = filesystem::file_size(file_path);
+	} catch (std::filesystem::filesystem_error &e) {
+		cout << e.what() << '\n';
+	}
+	return file_size;
+}
+
 int main() {
 	size_t choice;
 	//cin >> choice;
@@ -350,16 +359,50 @@ int main() {
 		decrypt_string(encrypted_str.first, encrypted_str.second);
 	} else if (choice == 2) {
 		string file_name = "IMG_0732.jpeg";
+		auto file_size = get_file_size(file_name);
+		cout << "所选文件大小为 " << file_size << " Byte.\n";
 		string key = "01234567";
 		auto start_encrypt = chrono::system_clock::now();	// 获取当前时间（文件加密开始）
 		auto sub_keys = generate_key(key);
 		auto input_file = read_file(file_name);
+
+		/*
 		vector<bitset<64>> encrypted_blocks;
 		encrypted_blocks.reserve(input_file.size());
 		for (auto &block : input_file) {
 			encrypted_blocks.push_back(encrypt_text(block, sub_keys));
+		}*/
+
+		vector<bitset<64>> encrypted_blocks(input_file.size());
+		auto num_threads = thread::hardware_concurrency();
+		int elements_per_thread = input_file.size() / num_threads;
+		vector<thread> threads;
+		for (int i = 0; i < num_threads; ++i) {
+			int start = i * elements_per_thread;
+			int end = (i == num_threads - 1) ? input_file.size() : start + elements_per_thread;
+			threads.emplace_back(multithreading_encrypt_text, ref(input_file), ref(encrypted_blocks), start, end, sub_keys);
 		}
-		// 将加密后的内容写入文件中
+		// 等待所有线程完成
+		for (auto &th : threads) {
+			th.join();
+		}
+
+		/**
+		vector<bitset<64>> encrypted_blocks(input_file.size());
+		auto num_threads = thread::hardware_concurrency();
+		int elements_per_thread = input_file.size() / num_threads;
+		vector<thread> threads;
+		for (int i = 0; i < num_threads; ++i) {
+			int start = i * elements_per_thread;
+			int end = (i == num_threads - 1) ? input_file.size() : start + elements_per_thread;
+			threads.emplace_back(encrypt_text, ref(input_file), ref(encrypted_blocks), start, end);
+		}
+		// 等待所有线程完成
+		for (auto &th : threads) {
+			th.join();
+		}
+		 */
+		 // 将加密后的内容写入文件中
 		ofstream output_file("encrypted_" + file_name, ios::binary | ios::out | ios::app);
 		for (auto &block : encrypted_blocks) {
 			output_file.write(reinterpret_cast<char *>(&block), sizeof(block));

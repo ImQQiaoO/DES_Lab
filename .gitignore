@@ -6,6 +6,8 @@
 *.pdf
 *.txt
 
+.vscode
+
 # User-specific files
 *.rsuser
 *.suo
